@@ -137,9 +137,43 @@
     };
   }
 
-  async function logout() {
-    try { await api('/api/logout', { method: 'POST' }); } catch {}
-    ROLE = null; loginMode = 'view'; renderLogin();
+  // Switch between view and edit; asks for the PIN or password of the target mode.
+  function openModeSwitch() {
+    const toEdit = !isOwner();
+    const scrim = document.createElement('div');
+    scrim.className = 'scrim';
+    scrim.innerHTML = `
+      <form class="sheet" role="dialog" aria-modal="true" aria-labelledby="mh" autocomplete="off">
+        <h2 id="mh">${toEdit ? 'Switch to edit mode' : 'Switch to view mode'}</h2>
+        <div class="field">
+          <label for="m-sec">${toEdit ? 'Edit password' : 'View PIN'}</label>
+          ${toEdit
+            ? '<input id="m-sec" type="password" autocomplete="current-password" required>'
+            : '<input id="m-sec" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" required>'}
+        </div>
+        <p class="err" id="merr"></p>
+        <div class="actions">
+          <button type="button" class="btn" id="m-cancel">Cancel</button>
+          <button type="submit" class="btn primary">${toEdit ? 'Start editing' : 'Switch to view'}</button>
+        </div>
+      </form>`;
+    document.body.appendChild(scrim);
+    document.body.style.overflow = 'hidden';
+    const close = () => { scrim.remove(); document.body.style.overflow = ''; document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    scrim.addEventListener('click', (e) => { if (e.target === scrim) close(); });
+    scrim.querySelector('#m-cancel').onclick = close;
+    const input = scrim.querySelector('#m-sec');
+    input.focus();
+    scrim.querySelector('form').onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+      try {
+        await api('/api/login', { method: 'POST', body: { mode: toEdit ? 'edit' : 'view', secret: input.value } });
+        close(); await load(); toast(toEdit ? 'Edit mode on' : 'View mode on');
+      } catch (err) { scrim.querySelector('#merr').textContent = err.message; btn.disabled = false; input.select(); }
+    };
   }
 
   // ---------- Shell ----------
@@ -162,10 +196,10 @@
             <h1>${esc(TAB_LABEL[view])}</h1>
             <div class="sub">${esc(fmtDay(todayIST(), { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
           </div>
-          ${isOwner() ? '' : '<span class="chip view">View only</span>'}
+          <button class="chip mode ${isOwner() ? 'edit' : 'view'}" data-act="switch-mode" aria-label="${isOwner() ? 'Editing. Switch to view mode' : 'View only. Switch to edit mode'}">${isOwner() ? 'Editing' : 'View only'} <span aria-hidden="true">&#8644;</span></button>
         </header>
         ${body}
-        <p class="foot">Term II, PGP 30 Section B. <button data-act="logout">Sign out</button></p>
+        <p class="foot">Term II, PGP 30 Section B.</p>
       </div>
       ${isOwner() && view === 'deadlines' ? '<button class="fab" data-act="add-dl">+ Add deadline</button>' : ''}
       <nav class="tabs" aria-label="Sections">
@@ -498,7 +532,7 @@
     const el = e.target.closest('[data-act]');
     if (!el) return;
     const act = el.dataset.act;
-    if (act === 'logout') return logout();
+    if (act === 'switch-mode') return openModeSwitch();
     if (act === 'mark') {
       if (!isOwner()) return;
       const id = el.dataset.id, p = el.dataset.p === '1';

@@ -49,6 +49,8 @@ button { cursor: pointer; }
 .top .sub { color: var(--muted); font-size: .9rem; }
 .chip { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; font-size: .8rem; font-weight: 600; background: var(--sunk); color: var(--muted); border: 0; }
 .chip.view { background: var(--amber-soft); color: var(--amber); }
+.chip.edit { background: var(--present-soft); color: var(--present); }
+.chip.mode { min-height: 36px; padding: 6px 12px; cursor: pointer; }
 
 /* Term strip — the one bold element */
 .term {

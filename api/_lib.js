@@ -5,6 +5,7 @@ import { TIMETABLE } from './_data.js';
 const COOKIE = 'termii_sess';
 const MAX_AGE = 60 * 60 * 24 * 180; // 180 days
 const STATE_PATH = 'termii/state.json';
+const TIMETABLE_PATH = 'termii/timetable.json';
 
 function secretKey() {
   return crypto.createHash('sha256')
@@ -76,7 +77,33 @@ export async function writeState(state) {
   return state;
 }
 
-export const SESSION_IDS = new Set(TIMETABLE.sessions.map((s) => s.id));
+// Class schedule synced from Google Calendar; falls back to the bundled snapshot.
+export async function readSyncedSessions() {
+  try {
+    const r = await get(TIMETABLE_PATH, { access: 'private', useCache: false });
+    if (!r || r.statusCode !== 200) return null;
+    const j = JSON.parse(await new Response(r.stream).text());
+    return Array.isArray(j.sessions) && j.sessions.length ? j : null;
+  } catch (e) {
+    if (/not ?found/i.test(`${e?.name} ${e?.message}`)) return null;
+    throw e;
+  }
+}
+
+export async function writeSyncedSessions(sessions) {
+  const doc = { sessions, syncedAt: new Date().toISOString() };
+  await put(TIMETABLE_PATH, JSON.stringify(doc), {
+    access: 'private', allowOverwrite: true, addRandomSuffix: false,
+    contentType: 'application/json', cacheControlMaxAge: 60,
+  });
+  return doc;
+}
+
+export async function getTimetable() {
+  const synced = await readSyncedSessions();
+  return { ...TIMETABLE, sessions: synced ? synced.sessions : TIMETABLE.sessions, syncedAt: synced?.syncedAt || null };
+}
+
 export const COURSE_CODES = new Set([...TIMETABLE.courses.map((c) => c.code), 'GEN']);
 export const DEADLINE_TYPES = new Set(['Assignment', 'Quiz', 'Project', 'Presentation', 'Other']);
 

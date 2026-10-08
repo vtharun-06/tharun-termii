@@ -1,5 +1,4 @@
-import { TIMETABLE } from './_data.js';
-import { getRole, readState, writeState, sendError, SESSION_IDS, COURSE_CODES, DEADLINE_TYPES } from './_lib.js';
+import { getRole, readState, writeState, sendError, getTimetable, COURSE_CODES, DEADLINE_TYPES } from './_lib.js';
 import crypto from 'node:crypto';
 
 const DUE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
@@ -29,8 +28,8 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const data = await readState();
-      return res.status(200).json({ role, data, timetable: TIMETABLE });
+      const [data, timetable] = await Promise.all([readState(), getTimetable()]);
+      return res.status(200).json({ role, data, timetable });
     }
 
     if (req.method === 'POST') {
@@ -40,7 +39,7 @@ export default async function handler(req, res) {
 
       switch (body.op) {
         case 'mark': {
-          if (!SESSION_IDS.has(body.id)) return sendError(res, 400, 'Unknown class.');
+          if (!(await getTimetable()).sessions.some((x) => x.id === body.id)) return sendError(res, 400, 'Unknown class.');
           if (body.present) state.attendance[body.id] = true;
           else delete state.attendance[body.id];
           break;

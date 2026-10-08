@@ -176,6 +176,24 @@
     };
   }
 
+  function syncLabel() {
+    if (!TT.syncedAt) return 'Timetable from the 8 Oct calendar snapshot.';
+    const t = new Intl.DateTimeFormat('en-IN', { timeZone: IST, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(TT.syncedAt));
+    return `Timetable synced ${t}.`;
+  }
+
+  let syncing = false;
+  async function syncTimetable() {
+    if (syncing || !isOwner()) return;
+    syncing = true; toast('Checking the calendar…');
+    try {
+      const r = await api('/api/sync', { method: 'POST' });
+      await load();
+      toast(r.moved || r.added || r.removed ? `Updated: ${r.moved} moved, ${r.added} new, ${r.removed} removed` : 'Timetable is up to date');
+    } catch (e) { toast(e.message); }
+    syncing = false;
+  }
+
   // ---------- Shell ----------
   const ICONS = {
     overview: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>',
@@ -199,7 +217,7 @@
           <button class="chip mode ${isOwner() ? 'edit' : 'view'}" data-act="switch-mode" aria-label="${isOwner() ? 'Editing. Switch to view mode' : 'View only. Switch to edit mode'}">${isOwner() ? 'Editing' : 'View only'} <span aria-hidden="true">&#8644;</span></button>
         </header>
         ${body}
-        <p class="foot">Term II, PGP 30 Section B.</p>
+        <p class="foot">Term II, PGP 30 Section B.<br>${esc(syncLabel())}${isOwner() ? ' <button data-act="sync">Refresh timetable</button>' : ''}</p>
       </div>
       ${isOwner() && view === 'deadlines' ? '<button class="fab" data-act="add-dl">+ Add deadline</button>' : ''}
       <nav class="tabs" aria-label="Sections">
@@ -533,6 +551,7 @@
     if (!el) return;
     const act = el.dataset.act;
     if (act === 'switch-mode') return openModeSwitch();
+    if (act === 'sync') return syncTimetable();
     if (act === 'mark') {
       if (!isOwner()) return;
       const id = el.dataset.id, p = el.dataset.p === '1';
